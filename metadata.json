@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Copy of 签报助手 - 活动通知与费用报表生成器",
+  "description": "一键生成标准格式的培训活动通知（Word）和费用明细表（Excel），支持自定义渠道、日期、地点及费用明细。",
+  "requestFramePermissions": []
+}
