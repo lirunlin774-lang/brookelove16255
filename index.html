@@ -4,24 +4,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>签报助手</title>
+    <title>签报助手 - 活动通知与费用报表</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script type="importmap">
 {
   "imports": {
+    "uuid": "https://esm.sh/uuid@^13.0.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "uuid": "https://esm.sh/uuid@^11.0.0",
-    "xlsx-js-style": "https://esm.sh/xlsx-js-style@1.2.0?bundle",
     "docx": "https://esm.sh/docx@^9.5.1",
-    "file-saver": "https://esm.sh/file-saver@^2.0.5"
+    "xlsx-js-style": "https://esm.sh/xlsx-js-style@^1.2.0"
   }
 }
 </script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div id="root"></div>
+    <!-- 显式引入入口文件，修复 Vercel 部署后的空白页问题 -->
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>
