@@ -5,10 +5,11 @@ import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
   WidthType, AlignmentType, VerticalAlign 
 } from 'docx';
-import XLSX_Lib from 'xlsx';
+import * as _XLSX from 'xlsx-js-style';
 import { ActivityData, ScheduleItem, ExpenseItem } from './types';
 
-const XLSX: any = (XLSX_Lib as any).utils ? XLSX_Lib : (XLSX_Lib as any).default || XLSX_Lib;
+// 兼容性处理：解决部分环境 import * as 无法获取 default 属性的问题
+const XLSX: any = (_XLSX as any).default || _XLSX;
 
 // 字体与字号配置
 const FONT_SONG = "仿宋";
@@ -62,13 +63,8 @@ const initialExpenses = (): ExpenseItem[] => [
 ];
 
 const App: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-
   const [data, setData] = useState<ActivityData>(() => {
-    const saved = localStorage.getItem('activity_form_v20');
+    const saved = localStorage.getItem('activity_form_v23');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { console.error(e); }
     }
@@ -87,18 +83,8 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    localStorage.setItem('activity_form_v20', JSON.stringify(data));
+    localStorage.setItem('activity_form_v23', JSON.stringify(data));
   }, [data]);
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginLoading(true);
-    // 模拟登录延迟
-    setTimeout(() => {
-      setIsLoggedIn(true);
-      setLoginLoading(false);
-    }, 800);
-  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -110,6 +96,20 @@ const App: React.FC = () => {
       }
       return next;
     });
+  };
+
+  const addScheduleRow = () => {
+    setData(prev => ({
+      ...prev,
+      schedule: [...prev.schedule, { id: uuidv4(), time: '', content: '', speaker: '' }]
+    }));
+  };
+
+  const removeScheduleRow = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      schedule: prev.schedule.filter(item => item.id !== id)
+    }));
   };
 
   const updateScheduleItem = (id: string, field: keyof ScheduleItem, value: string) => {
@@ -235,77 +235,41 @@ const App: React.FC = () => {
 
   const generateExcel = () => {
     try {
-      if (!XLSX || !XLSX.utils) throw new Error("XLSX 库加载失败");
+      if (!XLSX || !XLSX.utils) {
+        throw new Error("Excel 库加载异常，请刷新重试。");
+      }
 
-      const borderThin = {
-        top: { style: 'thin' }, bottom: { style: 'thin' },
-        left: { style: 'thin' }, right: { style: 'thin' }
-      };
-      
-      const styleTitle = {
-        font: { name: '宋体', sz: 14, bold: true },
-        alignment: { horizontal: 'center', vertical: 'center' }
-      };
-
-      const styleHeader = {
-        font: { name: '宋体', sz: 11, color: { rgb: "FFFFFF" }, bold: true },
-        fill: { fgColor: { rgb: "376092" } },
-        alignment: { horizontal: 'center', vertical: 'center' },
-        border: borderThin
-      };
-
-      const styleCenter = {
-        font: { name: '宋体', sz: 11 },
-        alignment: { horizontal: 'center', vertical: 'center' },
-        border: borderThin
-      };
-
-      const styleCenterWrapped = {
-        font: { name: '宋体', sz: 11 },
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-        border: borderThin
-      };
-
-      const styleLeftWrapped = {
-        font: { name: '宋体', sz: 11 },
-        alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
-        border: borderThin
-      };
-
+      const borderThin = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+      const styleTitle = { font: { name: '宋体', sz: 14, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } };
+      const styleHeader = { font: { name: '宋体', sz: 11, color: { rgb: "FFFFFF" }, bold: true }, fill: { fgColor: { rgb: "376092" } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borderThin };
+      const styleCenter = { font: { name: '宋体', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: borderThin };
+      const styleCenterWrapped = { font: { name: '宋体', sz: 11 }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: borderThin };
+      const styleLeftWrapped = { font: { name: '宋体', sz: 11 }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderThin };
       const styleNoBorder = { border: {} };
 
       const wb = XLSX.utils.book_new();
-      const ws: any = { '!ref': 'A1:G30' };
+      const ws: any = { '!ref': 'A1:G35' };
 
-      // A1:G1 标题 (无边框)
       ws['A1'] = { v: '费用明细-培训类', s: styleTitle };
       for(let c=1; c<=6; c++) ws[XLSX.utils.encode_cell({r: 0, c: c})] = { v: "", s: styleNoBorder };
-
-      // A2:G2 无边框
       for(let c=0; c<=6; c++) ws[XLSX.utils.encode_cell({r: 1, c: c})] = { v: "", s: styleNoBorder };
 
-      // A3:B3 培训举办地
       ws['A3'] = { v: '培训举办地', s: styleCenter };
       ws['B3'] = { v: '', s: styleCenter };
       ws['C3'] = { v: data.location, s: styleLeftWrapped };
       ws['D3'] = { v: '', s: styleLeftWrapped };
       ws['E3'] = { v: '', s: styleLeftWrapped };
 
-      // A4:B4 预估参与人数
       ws['A4'] = { v: '预估参与人数', s: styleCenter };
       ws['B4'] = { v: '', s: styleCenter };
       ws['C4'] = { v: data.participantCount || "", s: styleCenter };
       ws['D4'] = { v: '', s: styleCenter };
       ws['E4'] = { v: '', s: styleCenter };
 
-      // 第五行无边框
       for(let c=0; c<=6; c++) ws[XLSX.utils.encode_cell({r: 4, c: c})] = { v: "", s: styleNoBorder };
 
-      // 第六行：表头
       const headers = ["项目", "费用项目", "单价", "单位", "数量", "总价", "费用说明"];
-      headers.forEach((h, i) => {
-        ws[XLSX.utils.encode_cell({ r: 5, c: i })] = { v: h, s: styleHeader };
-      });
+      headers.forEach((h, i) => { ws[XLSX.utils.encode_cell({ r: 5, c: i })] = { v: h, s: styleHeader }; });
 
       const setRow = (r: number, cat: string, proj: string, p: any, u: string, q: any, t: any, d: string) => {
         const isNumericBlank = (!t || Number(t) === 0);
@@ -319,7 +283,6 @@ const App: React.FC = () => {
       };
 
       const getE = (proj: string) => data.expenses.find(e => e.project === proj) || { category: '', project: '', price: 0, unit: '', quantity: 0, total: 0, description: '' };
-      
       const expsConfig = [
         { row: 6, proj: '仅限于封闭培训期间发生的住宿费', cat: '住宿费' },
         { row: 7, proj: '交通费、租车费', cat: '交通费' },
@@ -342,26 +305,11 @@ const App: React.FC = () => {
         setRow(conf.row, conf.cat, conf.proj, e.price, e.unit, e.quantity, e.total, description);
       });
 
-      ws['A20'] = { v: '合计', s: styleCenter };
-      ws['B20'] = { v: '', s: styleCenter };
-      ws['F20'] = { v: totalExpense || "", s: styleCenter };
-      ['C20', 'D20', 'E20', 'G20'].forEach(cell => ws[cell] = {v: "", s: styleCenter});
-
-      for(let r=6; r<=19; r++){
-        for(let c=0; c<=6; c++){
-          const addr = XLSX.utils.encode_cell({r, c});
-          if(!ws[addr]) ws[addr] = { v: "", s: styleCenter };
-        }
-      }
-
-      for(let r=20; r<=21; r++){
-        for(let c=0; c<=6; c++) ws[XLSX.utils.encode_cell({r, c})] = { v: "", s: styleNoBorder };
-      }
-
-      ws['A23'] = { v: '备注：', s: { font: { name: '宋体', sz: 11 } } };
-      ws['B23'] = { v: '1.以上费用均为含税价（包含但不限于税费、服务费等）；', s: { font: { name: '宋体', sz: 11 } } };
-      ws['B24'] = { v: '2.模板供参考，可按实际情况调整；', s: { font: { name: '宋体', sz: 11 } } };
-      ws['B25'] = { v: '3.除费用明细表外，还需提供会议/培训通知、会议/培训日程安排等支持材料；', s: { font: { name: '宋体', sz: 11 } } };
+      const nextAvailableRow = 19;
+      ws[XLSX.utils.encode_cell({r: nextAvailableRow, c: 0})] = { v: '合计', s: styleCenter };
+      ws[XLSX.utils.encode_cell({r: nextAvailableRow, c: 1})] = { v: '', s: styleCenter };
+      ws[XLSX.utils.encode_cell({r: nextAvailableRow, c: 5})] = { v: totalExpense || "", s: styleCenter };
+      [2, 3, 4, 6].forEach(c => ws[XLSX.utils.encode_cell({r: nextAvailableRow, c})] = {v: "", s: styleCenter});
 
       ws['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, 
@@ -374,93 +322,19 @@ const App: React.FC = () => {
         { s: { r: 16, c: 0 }, e: { r: 18, c: 0 } }, 
         { s: { r: 19, c: 0 }, e: { r: 19, c: 1 } }, 
       ];
-
       ws['!cols'] = [{ wch: 10.82 }, { wch: 22.45 }, { wch: 8 }, { wch: 10.55 }, { wch: 23.09 }, { wch: 8 }, { wch: 28.73 }];
 
       XLSX.utils.book_append_sheet(wb, ws, "费用明细");
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       triggerDownload(blob, `${data.activityDate.replace(/-/g, '')}${data.channelName}培训费用明细表.xlsx`);
-
     } catch (err: any) {
-      console.error("Excel 生成失败:", err);
       alert("Excel 生成失败: " + err.message);
     }
   };
 
-  // Define lunchExp and teaExp derived from data to fix "Cannot find name" errors in JSX
   const lunchExp = getExpenseByProject('培训期间的正餐餐费');
   const teaExp = getExpenseByProject('培训期间的茶点费');
-
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
-        {/* 背景装饰 */}
-        <div className="absolute top-0 left-0 w-full h-full">
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px]"></div>
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px]"></div>
-        </div>
-
-        <div className="w-full max-w-[420px] relative z-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
-          <div className="bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-10 border border-white/20">
-            <div className="text-center mb-10">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-6 shadow-xl shadow-blue-500/20">
-                <i className="fas fa-file-signature text-white text-2xl"></i>
-              </div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">签报管理系统</h1>
-              <p className="text-slate-400 text-sm mt-2 font-medium">Fosun United Health - Sichuan</p>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div className="space-y-4">
-                <div className="relative group">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
-                    <i className="fas fa-user-circle"></i>
-                  </span>
-                  <input 
-                    type="text" 
-                    placeholder="用户名" 
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-6 outline-none focus:border-blue-500 focus:bg-white transition-all text-sm font-semibold"
-                  />
-                </div>
-                <div className="relative group">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
-                    <i className="fas fa-lock"></i>
-                  </span>
-                  <input 
-                    type="password" 
-                    placeholder="访问密码" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-6 outline-none focus:border-blue-500 focus:bg-white transition-all text-sm font-semibold"
-                  />
-                </div>
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={loginLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-              >
-                {loginLoading ? (
-                  <i className="fas fa-circle-notch animate-spin"></i>
-                ) : (
-                  <>进入系统 <i className="fas fa-arrow-right text-[10px]"></i></>
-                )}
-              </button>
-            </form>
-
-            <div className="mt-10 text-center">
-              <p className="text-[10px] text-slate-300 uppercase font-black tracking-widest">内部办公专用 · 严禁泄露</p>
-            </div>
-          </div>
-          <p className="text-center text-slate-500 text-[11px] mt-8 font-medium">© 2024 复星保德信四川分公司 中介条线</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
@@ -468,18 +342,13 @@ const App: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-600/20"><i className="fas fa-file-signature text-white text-xl"></i></div>
           <div>
-             <h1 className="text-xl font-bold tracking-tight leading-none">签报助手 <span className="text-blue-600">v5.0</span></h1>
+             <h1 className="text-xl font-bold tracking-tight leading-none">签报助手 <span className="text-blue-600">v5.3</span></h1>
              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Activity Report Management</span>
           </div>
         </div>
         <div className="flex items-center gap-6">
-          <div className="hidden md:flex flex-col items-end mr-2">
-            <span className="text-[11px] font-black text-slate-400 uppercase leading-none">当前用户</span>
-            <span className="text-xs font-bold text-slate-600">管理员</span>
-          </div>
-          <button onClick={() => { if(confirm('重置将清空所有内容？')){ localStorage.clear(); window.location.reload(); } }} className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-red-500 transition-colors">重置</button>
-          <button onClick={() => setIsLoggedIn(false)} className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-600 transition-colors">退出</button>
-          <button onClick={() => { generateWord(); setTimeout(generateExcel, 800); }} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all">一键导出</button>
+          <button onClick={() => { if(confirm('重置将清空所有内容？')){ localStorage.clear(); window.location.reload(); } }} className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-red-500 transition-colors">重置数据</button>
+          <button onClick={() => { generateWord(); setTimeout(generateExcel, 800); }} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all">一键生成全部报表</button>
         </div>
       </header>
 
@@ -511,23 +380,52 @@ const App: React.FC = () => {
                 <input name="location" value={data.location} onChange={handleInputChange} className="w-full px-5 py-4 bg-yellow-50 border-2 border-yellow-100 rounded-2xl font-bold outline-none" />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-xs font-black text-slate-400 uppercase mb-2">参加人员 (自动简称/可修改)</label>
+                <label className="block text-xs font-black text-slate-400 uppercase mb-2">参加人员 (已自动生成简称)</label>
                 <input name="participantsDesc" value={data.participantsDesc} onChange={handleInputChange} className="w-full px-5 py-4 bg-yellow-50 border-2 border-yellow-100 rounded-2xl font-bold outline-none" />
               </div>
             </div>
           </section>
 
           <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-            <h2 className="text-lg font-bold mb-6 flex items-center"><span className="w-1.5 h-6 bg-blue-500 rounded-full mr-3"></span>日程流程安排</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold flex items-center"><span className="w-1.5 h-6 bg-blue-500 rounded-full mr-3"></span>日程流程安排</h2>
+              <button 
+                onClick={addScheduleRow}
+                className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 font-bold text-sm bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <i className="fas fa-plus text-xs"></i> 添加一行
+              </button>
+            </div>
             <div className="overflow-hidden border border-slate-100 rounded-2xl">
               <table className="w-full text-left">
-                <thead className="bg-slate-50"><tr className="text-xs font-bold text-slate-400 border-b border-slate-100"><th className="px-6 py-4">时间</th><th className="px-6 py-4">内容</th><th className="px-6 py-4">主讲人</th></tr></thead>
+                <thead className="bg-slate-50">
+                  <tr className="text-xs font-bold text-slate-400 border-b border-slate-100">
+                    <th className="px-6 py-4">时间段</th>
+                    <th className="px-6 py-4">培训内容</th>
+                    <th className="px-6 py-4">主讲人</th>
+                    <th className="px-6 py-4 w-16 text-center">操作</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {data.schedule.map(item => (
-                    <tr key={item.id} className="text-sm">
-                      <td className="px-6 py-3 font-semibold text-slate-600"><input value={item.time} onChange={(e) => updateScheduleItem(item.id, 'time', e.target.value)} className="w-full border-none p-0 focus:ring-0 outline-none" /></td>
-                      <td className="px-6 py-3 text-slate-600"><input value={item.content} onChange={(e) => updateScheduleItem(item.id, 'content', e.target.value)} className="w-full border-none p-0 focus:ring-0 outline-none" /></td>
-                      <td className="px-6 py-3 text-slate-600"><input value={item.speaker} onChange={(e) => updateScheduleItem(item.id, 'speaker', e.target.value)} className="w-full border-none p-0 focus:ring-0 outline-none" /></td>
+                  {data.schedule.map((item) => (
+                    <tr key={item.id} className="text-sm group">
+                      <td className="px-6 py-3 font-semibold text-slate-600">
+                        <input value={item.time} onChange={(e) => updateScheduleItem(item.id, 'time', e.target.value)} placeholder="00:00-00:00" className="w-full border-none p-0 focus:ring-0 outline-none bg-transparent" />
+                      </td>
+                      <td className="px-6 py-3 text-slate-600">
+                        <input value={item.content} onChange={(e) => updateScheduleItem(item.id, 'content', e.target.value)} placeholder="请输入内容" className="w-full border-none p-0 focus:ring-0 outline-none bg-transparent" />
+                      </td>
+                      <td className="px-6 py-3 text-slate-600">
+                        <input value={item.speaker} onChange={(e) => updateScheduleItem(item.id, 'speaker', e.target.value)} placeholder="讲师名" className="w-full border-none p-0 focus:ring-0 outline-none bg-transparent" />
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        <button 
+                          onClick={() => removeScheduleRow(item.id)}
+                          className="text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                          <i className="fas fa-trash-alt"></i>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -537,7 +435,6 @@ const App: React.FC = () => {
         </div>
 
         <aside className="space-y-8">
-          {/* 餐饮录入 */}
           <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
              <h2 className="text-sm font-bold flex items-center gap-2"><i className="fas fa-utensils text-orange-400"></i> 餐饮费录入</h2>
              <div className="space-y-4">
@@ -564,7 +461,6 @@ const App: React.FC = () => {
                       </div>
                    </div>
                 </div>
-
                 <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
                    <p className="text-[10px] font-black text-blue-400 uppercase mb-3 tracking-tighter">茶点费</p>
                    <div className="grid grid-cols-2 gap-2 mb-2">
@@ -580,7 +476,7 @@ const App: React.FC = () => {
                    <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <span className="text-[9px] text-slate-400 font-bold ml-1">数量</span>
-                        <input placeholder="0" type="number" value={teaExp.quantity || ''} onChange={(e) => updateSpecificExpense('培训期间的茶点费', 'quantity', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:border-blue-300 outline-none transition-all" />
+                        <input placeholder="0" type="number" value={teaExp.quantity || ''} onChange={(e) => updateSpecificExpense('培训期间的茶点费', 'quantity', e.target.value)} className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-xs font-bold focus:border-blue-300 outline-none transition-all" />
                       </div>
                       <div className="space-y-1">
                         <span className="text-[9px] text-slate-400 font-bold ml-1">总价</span>
@@ -591,7 +487,6 @@ const App: React.FC = () => {
              </div>
           </div>
 
-          {/* 统计 */}
           <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
              <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl"></div>
              <h2 className="text-sm font-black text-blue-400 uppercase mb-6 tracking-widest">预算统计</h2>
